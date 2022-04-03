@@ -18,6 +18,7 @@ dependencies {
   api("io.opentelemetry:opentelemetry-semconv")
 
   implementation("org.slf4j:slf4j-api")
+  implementation group: 'com.googlecode.json-simple', name: 'json-simple', version: '1.1.1'
 
   compileOnly("com.google.auto.value:auto-value-annotations")
   annotationProcessor("com.google.auto.value:auto-value")

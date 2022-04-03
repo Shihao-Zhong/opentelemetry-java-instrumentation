@@ -9,11 +9,13 @@ import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanBuilder;
+import io.opentelemetry.instrumentation.api.config.Config;
 import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.instrumentation.api.InstrumentationVersion;
+import io.opentelemetry.instrumentation.api.instrumenter.VAIFConfigWatch;
 import io.opentelemetry.instrumentation.api.internal.SupportabilityMetrics;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -39,6 +41,10 @@ import javax.annotation.Nullable;
  * </ul>
  */
 public class Instrumenter<REQUEST, RESPONSE> {
+
+  private static final String VAIF_CONFIG_PATH =
+      Config.get()
+          .getBoolean("otel.instrumentation.vaif.config.path", "");
 
   /**
    * Returns a new {@link InstrumenterBuilder}.
@@ -91,6 +97,7 @@ public class Instrumenter<REQUEST, RESPONSE> {
   private static final SupportabilityMetrics supportability = SupportabilityMetrics.instance();
 
   private final String instrumentationName;
+  private final VAIFConfigWatch vaif;
   private final Tracer tracer;
   private final SpanNameExtractor<? super REQUEST> spanNameExtractor;
   private final SpanKindExtractor<? super REQUEST> spanKindExtractor;
@@ -122,6 +129,14 @@ public class Instrumenter<REQUEST, RESPONSE> {
     this.timeExtractor = builder.timeExtractor;
     this.disabled = builder.disabled;
     this.spanSuppressionStrategy = builder.getSpanSuppressionStrategy();
+    if (!Instrumenter.VAIF_CONFIG_PATH.equals("")) {
+      System.out.println("start vaif sampling service-name = " + this.instrumentationName);
+      System.out.println("start vaif sampling path = " + Instrumenter.VAIF_CONFIG_PATH);
+      this.vaif = new VAIFConfigWatch(this.instrumentationName, Instrumenter.VAIF_CONFIG_PATH);
+    } else {
+      this.vaif = null;
+    }
+
   }
 
   /**
@@ -151,10 +166,18 @@ public class Instrumenter<REQUEST, RESPONSE> {
    * Throwable)} when it is finished.
    */
   public Context start(Context parentContext, REQUEST request) {
+
+    String spanName = spanNameExtractor.extract(request);
+    // if spanName is disabled
+    this.vaif.readJsonConfig();
+    if (!this.vaif.isEnable(spanName)) {
+      return parentContext;
+    }
+
     SpanKind spanKind = spanKindExtractor.extract(request);
     SpanBuilder spanBuilder =
         tracer
-            .spanBuilder(spanNameExtractor.extract(request))
+            .spanBuilder(spanName)
             .setSpanKind(spanKind)
             .setParent(parentContext);
 
