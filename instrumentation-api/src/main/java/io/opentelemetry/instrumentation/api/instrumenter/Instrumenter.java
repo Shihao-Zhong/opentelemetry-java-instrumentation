@@ -164,9 +164,11 @@ public class Instrumenter<REQUEST, RESPONSE> {
    */
   public Context start(Context parentContext, REQUEST request) {
     String spanName = spanNameExtractor.extract(request);
+    System.out.println("current Span Name = " + spanName);
     if (this.vaif != null) {
       this.vaif.readJsonConfig();
       if (!this.vaif.isEnable(spanName)) {
+        System.out.println(spanName + " is disabled.");
         return parentContext;
       }
     }

@@ -43,7 +43,11 @@ public class VAIFConfigWatch {
   }
 
   public boolean isEnable(String spanName) {
-    return 1 == (long) this.config.get(spanName);
+    try {
+      return 1 == (long) this.config.get(spanName);
+    } catch (NullPointerException e) {
+      return false;
+    }
   }
 
   public void printConfig() {
