@@ -45,6 +45,7 @@ public class Instrumenter<REQUEST, RESPONSE> {
   private static final String VAIF_CONFIG_PATH =
       Config.get()
           .getString("otel.instrumentation.vaif.config.path", "");
+  private static final String SERVICE_NAME = Config.get().getMap("otel.resource.attributes", null).get("service.name");
   /**
    * Returns a new {@link InstrumenterBuilder}.
    *
@@ -127,9 +128,9 @@ public class Instrumenter<REQUEST, RESPONSE> {
     this.disabled = builder.disabled;
     this.spanSuppressionStrategy = builder.getSpanSuppressionStrategy();
     if (!Instrumenter.VAIF_CONFIG_PATH.equals("")) {
-      System.out.println("start vaif sampling service-name = " + this.instrumentationName);
+      System.out.println("start vaif sampling service-name = " + Instrumenter.SERVICE_NAME);
       System.out.println("start vaif sampling path = " + Instrumenter.VAIF_CONFIG_PATH);
-      this.vaif = new VAIFConfigWatch(this.instrumentationName, Instrumenter.VAIF_CONFIG_PATH);
+      this.vaif = new VAIFConfigWatch(Instrumenter.SERVICE_NAME, Instrumenter.VAIF_CONFIG_PATH);
     } else {
       this.vaif = null;
     }
