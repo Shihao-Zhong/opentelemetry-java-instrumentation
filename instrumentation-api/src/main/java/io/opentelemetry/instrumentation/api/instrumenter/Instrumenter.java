@@ -18,6 +18,7 @@ import io.opentelemetry.instrumentation.api.InstrumentationVersion;
 import io.opentelemetry.instrumentation.api.internal.SupportabilityMetrics;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.concurrent.TimeUnit;
@@ -164,6 +165,7 @@ public class Instrumenter<REQUEST, RESPONSE> {
    * Throwable)} when it is finished.
    */
   public Context start(Context parentContext, REQUEST request) {
+    System.out.println(Arrays.toString(Thread.currentThread().getStackTrace()).replace( ',', '\n' ));
     String spanName = spanNameExtractor.extract(request);
     System.out.println("current Span Name = " + spanName);
     if (this.vaif != null) {
