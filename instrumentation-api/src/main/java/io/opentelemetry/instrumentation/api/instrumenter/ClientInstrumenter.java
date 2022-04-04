@@ -23,6 +23,7 @@ final class ClientInstrumenter<REQUEST, RESPONSE> extends Instrumenter<REQUEST, 
 
   @Override
   public Context start(Context parentContext, REQUEST request) {
+    System.out.println("start context prop with context " + parentContext.toString());
     Context newContext = super.start(parentContext, request);
     propagators.getTextMapPropagator().inject(newContext, request, setter);
     return newContext;
