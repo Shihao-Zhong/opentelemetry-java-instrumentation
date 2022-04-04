@@ -44,9 +44,13 @@ public class VAIFConfigWatch {
 
   public boolean isEnable(String spanName) {
     try {
-      return 1 == (long) this.config.get(spanName);
+      this.printConfig();
+      Boolean result = 1 == (long) this.config.get(spanName);
+      System.out.println("SpanName" + spanName + " set enable to " + result);
+      return result;
     } catch (NullPointerException e) {
-      return false;
+      System.out.println("SpanName not exist in config, default enable");
+      return true;
     }
   }
 
