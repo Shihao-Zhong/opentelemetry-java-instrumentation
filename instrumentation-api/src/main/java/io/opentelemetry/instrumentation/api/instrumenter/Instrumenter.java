@@ -131,6 +131,7 @@ public class Instrumenter<REQUEST, RESPONSE> {
       System.out.println("start vaif sampling service-name = " + Instrumenter.SERVICE_NAME);
       System.out.println("start vaif sampling path = " + Instrumenter.VAIF_CONFIG_PATH);
       this.vaif = new VAIFConfigWatch(Instrumenter.SERVICE_NAME, Instrumenter.VAIF_CONFIG_PATH);
+      this.vaif.startWatch();
     } else {
       this.vaif = null;
     }
@@ -166,7 +167,7 @@ public class Instrumenter<REQUEST, RESPONSE> {
     String spanName = spanNameExtractor.extract(request);
     System.out.println("current Span Name = " + spanName);
     if (this.vaif != null) {
-      this.vaif.readJsonConfig();
+      //this.vaif.readJsonConfig();
       if (!this.vaif.isEnable(spanName)) {
         System.out.println(spanName + " is disabled.");
         return parentContext;
