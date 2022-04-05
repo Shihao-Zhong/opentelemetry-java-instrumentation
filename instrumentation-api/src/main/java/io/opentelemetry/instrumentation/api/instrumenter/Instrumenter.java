@@ -174,9 +174,14 @@ public class Instrumenter<REQUEST, RESPONSE> {
       //this.vaif.readJsonConfig();
       if (!this.vaif.isEnable(spanName)) {
         System.out.println(spanName + " is disabled.");
+        UnsafeAttributes attributesBuilder = new UnsafeAttributes();
+        for (AttributesExtractor<? super REQUEST, ? super RESPONSE> extractor : attributesExtractors) {
+          extractor.onStart(attributesBuilder, parentContext, request);
+        }
+        Attributes attributes = attributesBuilder;
         Context newContext = parentContext;
         for (ContextCustomizer<? super REQUEST> contextCustomizer : contextCustomizers) {
-          newContext = contextCustomizer.start(newContext, request, new UnsafeAttributes());
+          newContext = contextCustomizer.start(newContext, request, attributes);
         }
         return newContext;
       }
