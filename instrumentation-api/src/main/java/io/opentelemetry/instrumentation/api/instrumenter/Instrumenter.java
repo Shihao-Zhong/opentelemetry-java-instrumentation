@@ -165,9 +165,11 @@ public class Instrumenter<REQUEST, RESPONSE> {
    * Throwable)} when it is finished.
    */
   public Context start(Context parentContext, REQUEST request) {
+    System.out.println("\n\nregular start span: " + parentContext.toString());
     System.out.println(Arrays.toString(Thread.currentThread().getStackTrace()).replace( ',', '\n' ));
     String spanName = spanNameExtractor.extract(request);
     System.out.println("current Span Name = " + spanName);
+    System.out.println("ParentContext = " + parentContext.toString());
     if (this.vaif != null) {
       //this.vaif.readJsonConfig();
       if (!this.vaif.isEnable(spanName)) {
