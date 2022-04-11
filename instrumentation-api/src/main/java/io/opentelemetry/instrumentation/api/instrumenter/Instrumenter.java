@@ -1,0 +1,312 @@
+/*
+ * Copyright The OpenTelemetry Authors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+package io.opentelemetry.instrumentation.api.instrumenter;
+
+import io.opentelemetry.api.OpenTelemetry;
+import io.opentelemetry.api.common.Attributes;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.SpanBuilder;
+import io.opentelemetry.api.trace.SpanKind;
+import io.opentelemetry.api.trace.StatusCode;
+import io.opentelemetry.api.trace.Tracer;
+import io.opentelemetry.context.Context;
+import io.opentelemetry.instrumentation.api.config.Config;
+import io.opentelemetry.instrumentation.api.InstrumentationVersion;
+import io.opentelemetry.instrumentation.api.internal.SupportabilityMetrics;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.ListIterator;
+import java.util.concurrent.TimeUnit;
+import javax.annotation.Nullable;
+
+// TODO(anuraaga): Need to define what are actually useful knobs, perhaps even providing a
+// base-class
+// for instrumentation library builders.
+/**
+ * An instrumenter of the start and end of a request/response lifecycle. Almost all instrumentation
+ * of libraries falls into modeling start and end, generating observability signals from these such
+ * as a tracing {@link Span}, or metrics such as the duration taken, active requests, etc. When
+ * instrumenting a library, there will generally be four steps.
+ *
+ * <ul>
+ *   <li>Create an {@link Instrumenter} using {@link InstrumenterBuilder}. Use the builder to
+ *       configure any library-specific customizations, and also expose useful knobs to your user.
+ *   <li>Call {@link Instrumenter#shouldStart(Context, Object)} and do not proceed if {@code false}.
+ *   <li>Call {@link Instrumenter#start(Context, Object)} at the beginning of a request.
+ *   <li>Call {@link Instrumenter#end(Context, Object, Object, Throwable)} at the end of a request.
+ * </ul>
+ */
+public class Instrumenter<REQUEST, RESPONSE> {
+
+  private static final String VAIF_CONFIG_PATH =
+      Config.get()
+          .getString("otel.instrumentation.vaif.config.path", "");
+  private static final String SERVICE_NAME = Config.get().getMap("otel.resource.attributes", null).get("service.name");
+  /**
+   * Returns a new {@link InstrumenterBuilder}.
+   *
+   * <p>The {@code instrumentationName} is the name of the instrumentation library, not the name of
+   * the instrument*ed* library. The value passed in this parameter should uniquely identify the
+   * instrumentation library so that during troubleshooting it's possible to pinpoint what tracer
+   * produced problematic telemetry.
+   *
+   * <p>In this project we use a convention to encode the minimum supported version of the
+   * instrument*ed* library into the instrumentation name, for example {@code
+   * io.opentelemetry.apache-httpclient-4.0}. This way, if there are different instrumentations for
+   * different library versions it's easy to find out which instrumentations produced the telemetry
+   * data.
+   */
+  public static <REQUEST, RESPONSE> InstrumenterBuilder<REQUEST, RESPONSE> builder(
+      OpenTelemetry openTelemetry,
+      String instrumentationName,
+      SpanNameExtractor<? super REQUEST> spanNameExtractor) {
+    return new InstrumenterBuilder<>(
+        openTelemetry, instrumentationName, InstrumentationVersion.VERSION, spanNameExtractor);
+  }
+
+  /**
+   * Returns a new {@link InstrumenterBuilder}.
+   *
+   * <p>The {@code instrumentationName} is the name of the instrumentation library, not the name of
+   * the instrument*ed* library. The value passed in this parameter should uniquely identify the
+   * instrumentation library so that during troubleshooting it's possible to pinpoint what tracer
+   * produced problematic telemetry.
+   *
+   * <p>The {@code instrumentationVersion} is the version of the instrumentation library, not the
+   * version of the instrument*ed* library.
+   *
+   * <p>In this project we use a convention to encode the minimum supported version of the
+   * instrument*ed* library into the instrumentation name, for example {@code
+   * io.opentelemetry.apache-httpclient-4.0}. This way, if there are different instrumentations for
+   * different library versions it's easy to find out which instrumentations produced the telemetry
+   * data.
+   */
+  public static <REQUEST, RESPONSE> InstrumenterBuilder<REQUEST, RESPONSE> builder(
+      OpenTelemetry openTelemetry,
+      String instrumentationName,
+      String instrumentationVersion,
+      SpanNameExtractor<? super REQUEST> spanNameExtractor) {
+    return new InstrumenterBuilder<>(
+        openTelemetry, instrumentationName, instrumentationVersion, spanNameExtractor);
+  }
+
+  private static final SupportabilityMetrics supportability = SupportabilityMetrics.instance();
+
+  private final String instrumentationName;
+  private final Tracer tracer;
+  private final SpanNameExtractor<? super REQUEST> spanNameExtractor;
+  private final SpanKindExtractor<? super REQUEST> spanKindExtractor;
+  private final SpanStatusExtractor<? super REQUEST, ? super RESPONSE> spanStatusExtractor;
+  private final List<? extends SpanLinksExtractor<? super REQUEST>> spanLinksExtractors;
+  private final List<? extends AttributesExtractor<? super REQUEST, ? super RESPONSE>>
+      attributesExtractors;
+  private final List<? extends ContextCustomizer<? super REQUEST>> contextCustomizers;
+  private final List<? extends RequestListener> requestListeners;
+  private final ErrorCauseExtractor errorCauseExtractor;
+  @Nullable private final TimeExtractor<REQUEST, RESPONSE> timeExtractor;
+  private final boolean disabled;
+  private final SpanSuppressionStrategy spanSuppressionStrategy;
+  private final VAIFConfigWatch vaif;
+
+  Instrumenter(InstrumenterBuilder<REQUEST, RESPONSE> builder) {
+    this.instrumentationName = builder.instrumentationName;
+    this.tracer =
+        builder.openTelemetry.getTracer(instrumentationName, builder.instrumentationVersion);
+    this.spanNameExtractor = builder.spanNameExtractor;
+    this.spanKindExtractor = builder.spanKindExtractor;
+    this.spanStatusExtractor = builder.spanStatusExtractor;
+    this.spanLinksExtractors = new ArrayList<>(builder.spanLinksExtractors);
+    this.attributesExtractors = new ArrayList<>(builder.attributesExtractors);
+    this.contextCustomizers = new ArrayList<>(builder.contextCustomizers);
+    this.requestListeners = new ArrayList<>(builder.requestListeners);
+    this.errorCauseExtractor = builder.errorCauseExtractor;
+    this.timeExtractor = builder.timeExtractor;
+    this.disabled = builder.disabled;
+    this.spanSuppressionStrategy = builder.getSpanSuppressionStrategy();
+    if (!Instrumenter.VAIF_CONFIG_PATH.equals("")) {
+      System.out.println("start vaif sampling service-name = " + Instrumenter.SERVICE_NAME);
+      System.out.println("start vaif sampling path = " + Instrumenter.VAIF_CONFIG_PATH);
+      this.vaif = new VAIFConfigWatch(Instrumenter.SERVICE_NAME, Instrumenter.VAIF_CONFIG_PATH);
+      this.vaif.startWatch();
+    } else {
+      this.vaif = null;
+    }
+    this.perfData = new ArrayList<float>();
+    shutDownHook(); // initialize shutdown hook to write data to file
+  }
+
+  void shutDownHook() {
+    Runtime.getRuntime().addShutdownHook(new Thread()
+    {
+      public void run()
+      {
+        FileWriter outFile = new FileWriter("/graph_data");
+        System.out.println("Shutdown Hook is running!");      
+        String outString = "";
+
+        for (int i = 0; i < this.perfData.size(); i += 1) {
+          outString += (String.valueOf(this.perfData.get(i)) + ",");
+        }
+        
+        // remove trailing ,
+        outString = outString.substring(0, outString.length() - 1);
+        outFile.write(outString);
+        outFile.close();
+      }
+    });
+  }
+
+  /**
+   * Returns whether instrumentation should be applied for the {@link REQUEST}. If {@code true},
+   * call {@link #start(Context, Object)} and {@link #end(Context, Object, Object, Throwable)}
+   * around the operation being instrumented, or if {@code false} execute the operation directly
+   * without calling those methods.
+   */
+  public boolean shouldStart(Context parentContext, REQUEST request) {
+    if (disabled) {
+      return false;
+    }
+    SpanKind spanKind = spanKindExtractor.extract(request);
+    boolean suppressed = spanSuppressionStrategy.shouldSuppress(parentContext, spanKind);
+
+    if (suppressed) {
+      supportability.recordSuppressedSpan(spanKind, instrumentationName);
+    }
+    return !suppressed;
+  }
+
+  /**
+   * Starts a new operation to be instrumented. The {@code parentContext} is the parent of the
+   * resulting instrumented operation and should usually be {@code Context.current()}. The {@code
+   * request} is the request object of this operation. The returned {@link Context} should be
+   * propagated along with the operation and passed to {@link #end(Context, Object, Object,
+   * Throwable)} when it is finished.
+   */
+  public Context start(Context parentContext, REQUEST request) {
+    long start = System.nanoTime();
+
+    System.out.println("\n\nregular start span: " + parentContext.toString());
+    System.out.println(Arrays.toString(Thread.currentThread().getStackTrace()).replace( ',', '\n' ));
+    String spanName = spanNameExtractor.extract(request);
+    System.out.println("current Span Name = " + spanName);
+    System.out.println("ParentContext = " + parentContext.toString());
+    if (this.vaif != null) {
+      if (!this.vaif.isEnable(spanName)) {
+        System.out.println(spanName + " is disabled.");
+        UnsafeAttributes attributesBuilder = new UnsafeAttributes();
+        for (AttributesExtractor<? super REQUEST, ? super RESPONSE> extractor : attributesExtractors) {
+          extractor.onStart(attributesBuilder, parentContext, request);
+        }
+        Attributes attributes = attributesBuilder;
+        Context newContext = parentContext;
+        for (ContextCustomizer<? super REQUEST> contextCustomizer : contextCustomizers) {
+          newContext = contextCustomizer.start(newContext, request, attributes);
+        }
+        this.perfData.add(((float) System.nanoTime() - (float) start) / 1000);
+        return newContext;
+      }
+    }
+    SpanKind spanKind = spanKindExtractor.extract(request);
+    SpanBuilder spanBuilder =
+        tracer
+            .spanBuilder(spanName)
+            .setSpanKind(spanKind)
+            .setParent(parentContext);
+
+    Instant startTime = null;
+    if (timeExtractor != null) {
+      startTime = timeExtractor.extractStartTime(request);
+      spanBuilder.setStartTimestamp(startTime);
+    }
+
+    SpanLinksBuilder spanLinksBuilder = new SpanLinksBuilderImpl(spanBuilder);
+    for (SpanLinksExtractor<? super REQUEST> spanLinksExtractor : spanLinksExtractors) {
+      spanLinksExtractor.extract(spanLinksBuilder, parentContext, request);
+    }
+
+    UnsafeAttributes attributesBuilder = new UnsafeAttributes();
+    for (AttributesExtractor<? super REQUEST, ? super RESPONSE> extractor : attributesExtractors) {
+      extractor.onStart(attributesBuilder, parentContext, request);
+    }
+    Attributes attributes = attributesBuilder;
+
+    Context context = parentContext;
+
+    spanBuilder.setAllAttributes(attributes);
+    Span span = spanBuilder.startSpan();
+    context = context.with(span);
+
+    for (ContextCustomizer<? super REQUEST> contextCustomizer : contextCustomizers) {
+      context = contextCustomizer.start(context, request, attributes);
+    }
+
+    if (!requestListeners.isEmpty()) {
+      long startNanos = getNanos(startTime);
+      for (RequestListener requestListener : requestListeners) {
+        context = requestListener.start(context, attributes, startNanos);
+      }
+    }
+
+    this.perfData.add(((float) System.nanoTime() - (float) start) / 1000);
+    return spanSuppressionStrategy.storeInContext(context, spanKind, span);
+  }
+
+  /**
+   * Ends an instrumented operation. The {@link Context} must be what was returned from {@link
+   * #start(Context, Object)}. {@code request} is the request object of the operation, {@code
+   * response} is the response object of the operation, and {@code error} is an exception that was
+   * thrown by the operation, or {@code null} if none was thrown.
+   */
+  public void end(
+      Context context, REQUEST request, @Nullable RESPONSE response, @Nullable Throwable error) {
+    Span span = Span.fromContext(context);
+
+    if (error != null) {
+      error = errorCauseExtractor.extractCause(error);
+      span.recordException(error);
+    }
+
+    UnsafeAttributes attributes = new UnsafeAttributes();
+    for (AttributesExtractor<? super REQUEST, ? super RESPONSE> extractor : attributesExtractors) {
+      extractor.onEnd(attributes, context, request, response, error);
+    }
+    span.setAllAttributes(attributes);
+
+    Instant endTime = null;
+    if (timeExtractor != null) {
+      endTime = timeExtractor.extractEndTime(request, response, error);
+    }
+
+    if (!requestListeners.isEmpty()) {
+      long endNanos = getNanos(endTime);
+      ListIterator<? extends RequestListener> i =
+          requestListeners.listIterator(requestListeners.size());
+      while (i.hasPrevious()) {
+        i.previous().end(context, attributes, endNanos);
+      }
+    }
+
+    StatusCode statusCode = spanStatusExtractor.extract(request, response, error);
+    if (statusCode != StatusCode.UNSET) {
+      span.setStatus(statusCode);
+    }
+
+    if (endTime != null) {
+      span.end(endTime);
+    } else {
+      span.end();
+    }
+  }
+
+  private static long getNanos(@Nullable Instant time) {
+    if (time == null) {
+      return System.nanoTime();
+    }
+    return TimeUnit.SECONDS.toNanos(time.getEpochSecond()) + time.getNano();
+  }
+}
