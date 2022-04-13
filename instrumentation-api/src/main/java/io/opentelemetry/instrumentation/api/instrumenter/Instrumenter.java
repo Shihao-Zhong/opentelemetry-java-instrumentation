@@ -46,6 +46,9 @@ public class Instrumenter<REQUEST, RESPONSE> {
   private static final String VAIF_CONFIG_PATH =
       Config.get()
           .getString("otel.instrumentation.vaif.config.path", "");
+  private static final String VAIF_CP_CONFIG_PATH =
+      Config.get()
+          .getString("otel.instrumentation.vaif.context_prop_config.path", "");
   private static final String SERVICE_NAME = Config.get().getMap("otel.resource.attributes", null).get("service.name");
   /**
    * Returns a new {@link InstrumenterBuilder}.
@@ -131,7 +134,7 @@ public class Instrumenter<REQUEST, RESPONSE> {
     if (!Instrumenter.VAIF_CONFIG_PATH.equals("")) {
       System.out.println("start vaif sampling service-name = " + Instrumenter.SERVICE_NAME);
       System.out.println("start vaif sampling path = " + Instrumenter.VAIF_CONFIG_PATH);
-      this.vaif = new VAIFConfigWatch(Instrumenter.SERVICE_NAME, Instrumenter.VAIF_CONFIG_PATH);
+      this.vaif = new VAIFConfigWatch(Instrumenter.SERVICE_NAME, Instrumenter.VAIF_CONFIG_PATH, Instrumenter.VAIF_CP_CONFIG_PATH);
       this.vaif.startWatch();
     } else {
       this.vaif = null;
@@ -166,26 +169,37 @@ public class Instrumenter<REQUEST, RESPONSE> {
    */
   public Context start(Context parentContext, REQUEST request) {
     System.out.println("\n\nregular start span: " + parentContext.toString());
+    System.out.println("\n\nrequest: " + request.toString());
     System.out.println(Arrays.toString(Thread.currentThread().getStackTrace()).replace( ',', '\n' ));
     String spanName = spanNameExtractor.extract(request);
     System.out.println("current Span Name = " + spanName);
     System.out.println("ParentContext = " + parentContext.toString());
+
+    // if vaif not setup, just use existing logic
     if (this.vaif != null) {
+      boolean isPropagation = this.vaif.isContextPropagation();
+      System.out.println("current Span is prop: " + isPropagation);
       //this.vaif.readJsonConfig();
-      if (!this.vaif.isEnable(spanName)) {
-        System.out.println(spanName + " is disabled.");
-        UnsafeAttributes attributesBuilder = new UnsafeAttributes();
-        for (AttributesExtractor<? super REQUEST, ? super RESPONSE> extractor : attributesExtractors) {
-          extractor.onStart(attributesBuilder, parentContext, request);
+      if (this.vaif.isEnable(spanName)) {
+        System.out.println(spanName + " is enable.");
+        return buildSpanContext(parentContext, request, spanName, true);
+      } else {
+        // if we need to propagate and span is disabled
+        if (isPropagation) {
+          System.out.println(spanName + " is disable but with context prop.");
+          return buildSpanContext(parentContext, request, spanName, false);
+        } else {
+          // if is disabled and not propagate context, remove it
+          System.out.println(spanName + " is disable and removed.");
+          return parentContext;
         }
-        Attributes attributes = attributesBuilder;
-        Context newContext = parentContext;
-        for (ContextCustomizer<? super REQUEST> contextCustomizer : contextCustomizers) {
-          newContext = contextCustomizer.start(newContext, request, attributes);
-        }
-        return newContext;
       }
+    } else {
+      return buildSpanContext(parentContext, request, spanName, true);
     }
+  }
+
+  private Context buildSpanContext(Context parentContext, REQUEST request, String spanName, boolean addAttributes) {
     SpanKind spanKind = spanKindExtractor.extract(request);
     SpanBuilder spanBuilder =
         tracer
@@ -205,8 +219,10 @@ public class Instrumenter<REQUEST, RESPONSE> {
     }
 
     UnsafeAttributes attributesBuilder = new UnsafeAttributes();
-    for (AttributesExtractor<? super REQUEST, ? super RESPONSE> extractor : attributesExtractors) {
-      extractor.onStart(attributesBuilder, parentContext, request);
+    if (!addAttributes) {
+      for (AttributesExtractor<? super REQUEST, ? super RESPONSE> extractor : attributesExtractors) {
+        extractor.onStart(attributesBuilder, parentContext, request);
+      }
     }
     Attributes attributes = attributesBuilder;
 
@@ -228,6 +244,7 @@ public class Instrumenter<REQUEST, RESPONSE> {
     }
 
     return spanSuppressionStrategy.storeInContext(context, spanKind, span);
+
   }
 
   /**

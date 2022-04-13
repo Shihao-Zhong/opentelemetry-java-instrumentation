@@ -1,5 +1,6 @@
 package io.opentelemetry.instrumentation.api.instrumenter;
 
+import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 
@@ -13,20 +14,28 @@ import java.nio.file.StandardWatchEventKinds;
 import java.nio.file.WatchEvent;
 import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.concurrent.Executors;
 
 public class VAIFConfigWatch {
 
   private final String serviceName;
+  private final String contextPropagationPath;
   private final String configPath;
   private JSONObject config;
+  private HashMap<String, HashSet<String>> contextPropagationConfig;
   public boolean running;
 
-  VAIFConfigWatch(String serviceName, String configPath) {
+  VAIFConfigWatch(String serviceName, String configPath, String contextPropagationPath) {
     this.running = true;
     this.serviceName = serviceName;
     this.configPath = configPath;
+    this.contextPropagationPath = contextPropagationPath;
     this.readJsonConfig();
+    this.getContextPropagationConfig();
+    this.printPropagationConfig();
+
   }
 
   public void startWatch() {
@@ -52,6 +61,20 @@ public class VAIFConfigWatch {
       System.out.println("SpanName not exist in config, default enable");
       return true;
     }
+  }
+
+  public boolean isContextPropagation() {
+    StackTraceElement[] classes = Thread.currentThread().getStackTrace();
+    for (int i = 0; i < classes.length; i++) {
+
+      if (this.contextPropagationConfig.containsKey(classes[i].getClassName())) {
+        HashSet<String> methodSet = this.contextPropagationConfig.get(classes[i].getClassName());
+        if (methodSet.contains(classes[i].getMethodName())) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   public void printConfig() {
@@ -98,6 +121,38 @@ public class VAIFConfigWatch {
       this.config = (JSONObject) obj.get(this.serviceName);
     } catch (Exception e) {
       System.out.println("read VAIF config error" + e);;
+    }
+  }
+
+  public void getContextPropagationConfig() {
+    JSONParser parser = new JSONParser();
+    this.contextPropagationConfig = new HashMap<>();
+    try {
+      JSONObject obj = (JSONObject) parser.parse(
+          Files.newBufferedReader(Paths.get(this.contextPropagationPath), Charset.defaultCharset()));
+
+      for(Object key : obj.keySet()) {
+        String className = (String) key;
+        HashSet<String> methodSet = new HashSet<>();
+        if (obj.get(className) instanceof JSONArray) {
+          JSONArray arr = (JSONArray) obj.get(className);
+          for (int i = 0; i < arr.size(); i++) {
+            methodSet.add(arr.get(i).toString());
+          }
+        }
+        this.contextPropagationConfig.put(className, methodSet);
+      }
+
+    } catch (Exception e) {
+      System.out.println("read VAIF context propagation config error" + e);;
+    }
+  }
+
+  public void printPropagationConfig() {
+    for (String name: this.contextPropagationConfig.keySet()) {
+      String key = name.toString();
+      String value = this.contextPropagationConfig.get(name).toString();
+      System.out.println(key + " " + value);
     }
   }
 }

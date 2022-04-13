@@ -71,7 +71,9 @@ public class HttpUrlConnectionInstrumentation implements TypeInstrumentation {
       }
 
       Context parentContext = currentContext();
+      System.out.println("current context in http : " + parentContext.toString());
       if (!instrumenter().shouldStart(parentContext, connection)) {
+        System.out.println("HTTP should not start");
         return;
       }
 
@@ -124,6 +126,7 @@ public class HttpUrlConnectionInstrumentation implements TypeInstrumentation {
             // to be consistent with the telemetry for other http clients.
             instrumenter().end(httpUrlState.context, connection, responseCode, null);
           } else {
+            System.out.println("HTTP end here");
             instrumenter()
                 .end(
                     httpUrlState.context,
