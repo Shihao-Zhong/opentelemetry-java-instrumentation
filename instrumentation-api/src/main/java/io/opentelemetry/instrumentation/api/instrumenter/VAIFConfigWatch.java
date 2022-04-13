@@ -66,9 +66,11 @@ public class VAIFConfigWatch {
   public boolean isContextPropagation() {
     StackTraceElement[] classes = Thread.currentThread().getStackTrace();
     for (int i = 0; i < classes.length; i++) {
-
+      System.out.println("current class = " + classes[i].getClassName());
+      System.out.println(this.contextPropagationConfig.containsKey(classes[i].getClassName()));
       if (this.contextPropagationConfig.containsKey(classes[i].getClassName())) {
         HashSet<String> methodSet = this.contextPropagationConfig.get(classes[i].getClassName());
+        System.out.println("get set + " + methodSet + classes[i].getMethodName() + methodSet.contains(classes[i].getMethodName()));
         if (methodSet.contains(classes[i].getMethodName())) {
           return true;
         }
