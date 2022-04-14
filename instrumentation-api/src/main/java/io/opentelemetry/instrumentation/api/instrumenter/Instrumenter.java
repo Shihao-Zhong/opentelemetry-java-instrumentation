@@ -18,7 +18,6 @@ import io.opentelemetry.instrumentation.api.InstrumentationVersion;
 import io.opentelemetry.instrumentation.api.internal.SupportabilityMetrics;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.concurrent.TimeUnit;
@@ -168,29 +167,29 @@ public class Instrumenter<REQUEST, RESPONSE> {
    * Throwable)} when it is finished.
    */
   public Context start(Context parentContext, REQUEST request) {
-    System.out.println("\n\nregular start span: " + parentContext.toString());
-    System.out.println("\n\nrequest: " + request.toString());
-    System.out.println(Arrays.toString(Thread.currentThread().getStackTrace()).replace( ',', '\n' ));
+    //System.out.println("\n\nregular start span: " + parentContext.toString());
+    //System.out.println("\n\nrequest: " + request.toString());
+    //System.out.println(Arrays.toString(Thread.currentThread().getStackTrace()).replace( ',', '\n' ));
     String spanName = spanNameExtractor.extract(request);
-    System.out.println("current Span Name = " + spanName);
-    System.out.println("ParentContext = " + parentContext.toString());
+    //System.out.println("current Span Name = " + spanName);
+    //System.out.println("ParentContext = " + parentContext.toString());
 
     // if vaif not setup, just use existing logic
     if (this.vaif != null) {
       boolean isPropagation = this.vaif.isContextPropagation();
-      System.out.println("current Span is prop: " + isPropagation);
+      //System.out.println("current Span is prop: " + isPropagation);
       //this.vaif.readJsonConfig();
       if (this.vaif.isEnable(spanName)) {
-        System.out.println(spanName + " is enable.");
+        //System.out.println(spanName + " is enable.");
         return buildSpanContext(parentContext, request, spanName, true);
       } else {
         // if we need to propagate and span is disabled
         if (isPropagation) {
-          System.out.println(spanName + " is disable but with context prop.");
+          //System.out.println(spanName + " is disable but with context prop.");
           return buildSpanContext(parentContext, request, spanName, false);
         } else {
           // if is disabled and not propagate context, remove it
-          System.out.println(spanName + " is disable and removed.");
+          //System.out.println(spanName + " is disable and removed.");
           return parentContext;
         }
       }
@@ -232,8 +231,10 @@ public class Instrumenter<REQUEST, RESPONSE> {
     Span span = spanBuilder.startSpan();
     context = context.with(span);
 
-    for (ContextCustomizer<? super REQUEST> contextCustomizer : contextCustomizers) {
-      context = contextCustomizer.start(context, request, attributes);
+    if (!addAttributes) {
+      for (ContextCustomizer<? super REQUEST> contextCustomizer : contextCustomizers) {
+        context = contextCustomizer.start(context, request, attributes);
+      }
     }
 
     if (!requestListeners.isEmpty()) {

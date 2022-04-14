@@ -34,7 +34,7 @@ public class VAIFConfigWatch {
     this.contextPropagationPath = contextPropagationPath;
     this.readJsonConfig();
     this.getContextPropagationConfig();
-    this.printPropagationConfig();
+    //this.printPropagationConfig();
 
   }
 
@@ -54,11 +54,11 @@ public class VAIFConfigWatch {
   public boolean isEnable(String spanName) {
     try {
       this.printConfig();
-      Boolean result = 1 == (long) this.config.get(spanName);
-      System.out.println("SpanName" + spanName + " set enable to " + result);
+      boolean result = 1 == (long) this.config.get(spanName);
+      //System.out.println("SpanName" + spanName + " set enable to " + result);
       return result;
     } catch (NullPointerException e) {
-      System.out.println("SpanName not exist in config, default enable");
+      //System.out.println("SpanName not exist in config, default enable");
       return true;
     }
   }
@@ -66,11 +66,13 @@ public class VAIFConfigWatch {
   public boolean isContextPropagation() {
     StackTraceElement[] classes = Thread.currentThread().getStackTrace();
     for (int i = 0; i < classes.length; i++) {
-      System.out.println("current class = " + classes[i].getClassName());
-      System.out.println(this.contextPropagationConfig.containsKey(classes[i].getClassName()));
+
+      //System.out.println("current class = " + classes[i].getClassName());
+      //System.out.println(this.contextPropagationConfig.toString());
+
       if (this.contextPropagationConfig.containsKey(classes[i].getClassName())) {
         HashSet<String> methodSet = this.contextPropagationConfig.get(classes[i].getClassName());
-        System.out.println("get set + " + methodSet + classes[i].getMethodName() + methodSet.contains(classes[i].getMethodName()));
+        //System.out.println("get set + " + methodSet + classes[i].getMethodName() + methodSet.contains(classes[i].getMethodName()));
         if (methodSet.contains(classes[i].getMethodName())) {
           return true;
         }
@@ -107,7 +109,7 @@ public class VAIFConfigWatch {
         // reset the key
         boolean valid = wk.reset();
         if (!valid) {
-          System.out.println("Key has been unregisterede");
+          System.out.println("Key has been unregistered");
         }
       }
     } catch (IOException | InterruptedException e) {
