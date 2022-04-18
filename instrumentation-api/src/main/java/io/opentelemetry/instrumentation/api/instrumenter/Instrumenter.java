@@ -23,6 +23,8 @@ import java.util.ListIterator;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
 
+import static io.opentelemetry.instrumentation.api.instrumenter.VAIFConfigWatch.getVAIFConfigWatch;
+
 // TODO(anuraaga): Need to define what are actually useful knobs, perhaps even providing a
 // base-class
 // for instrumentation library builders.
@@ -133,7 +135,7 @@ public class Instrumenter<REQUEST, RESPONSE> {
     if (!Instrumenter.VAIF_CONFIG_PATH.equals("")) {
       System.out.println("start vaif sampling service-name = " + Instrumenter.SERVICE_NAME);
       System.out.println("start vaif sampling path = " + Instrumenter.VAIF_CONFIG_PATH);
-      this.vaif = new VAIFConfigWatch(Instrumenter.SERVICE_NAME, Instrumenter.VAIF_CONFIG_PATH, Instrumenter.VAIF_CP_CONFIG_PATH);
+      this.vaif = getVAIFConfigWatch(Instrumenter.SERVICE_NAME, Instrumenter.VAIF_CONFIG_PATH, Instrumenter.VAIF_CP_CONFIG_PATH);
       this.vaif.startWatch();
     } else {
       this.vaif = null;

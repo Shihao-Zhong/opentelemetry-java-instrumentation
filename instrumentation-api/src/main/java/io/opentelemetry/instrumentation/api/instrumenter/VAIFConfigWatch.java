@@ -26,6 +26,7 @@ public class VAIFConfigWatch {
   private JSONObject config;
   private HashMap<String, HashSet<String>> contextPropagationConfig;
   public boolean running;
+  public static VAIFConfigWatch vaif = null;
 
   VAIFConfigWatch(String serviceName, String configPath, String contextPropagationPath) {
     this.running = true;
@@ -36,6 +37,14 @@ public class VAIFConfigWatch {
     this.getContextPropagationConfig();
     //this.printPropagationConfig();
 
+  }
+
+  public static VAIFConfigWatch getVAIFConfigWatch(String serviceName, String configPath, String contextPropagationPath) {
+    if (VAIFConfigWatch.vaif == null) {
+      return new VAIFConfigWatch(serviceName, configPath, contextPropagationPath);
+    } else {
+      return VAIFConfigWatch.vaif;
+    }
   }
 
   public void startWatch() {
@@ -53,7 +62,7 @@ public class VAIFConfigWatch {
 
   public boolean isEnable(String spanName) {
     try {
-      this.printConfig();
+      //this.printConfig();
       boolean result = 1 == (long) this.config.get(spanName);
       //System.out.println("SpanName" + spanName + " set enable to " + result);
       return result;
