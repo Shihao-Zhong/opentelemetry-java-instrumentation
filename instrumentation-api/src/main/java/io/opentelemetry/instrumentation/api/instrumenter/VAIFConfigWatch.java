@@ -41,6 +41,7 @@ public class VAIFConfigWatch {
 
   public static VAIFConfigWatch getVAIFConfigWatch(String serviceName, String configPath, String contextPropagationPath) {
     if (VAIFConfigWatch.vaif == null) {
+      System.out.println("start vaif sampling service-name = " + serviceName);
       return new VAIFConfigWatch(serviceName, configPath, contextPropagationPath);
     } else {
       return VAIFConfigWatch.vaif;

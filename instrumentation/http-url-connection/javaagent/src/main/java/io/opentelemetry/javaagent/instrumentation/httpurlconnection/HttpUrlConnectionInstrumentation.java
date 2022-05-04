@@ -22,6 +22,7 @@ import io.opentelemetry.javaagent.extension.instrumentation.TypeInstrumentation;
 import io.opentelemetry.javaagent.extension.instrumentation.TypeTransformer;
 import io.opentelemetry.javaagent.instrumentation.api.CallDepth;
 import java.net.HttpURLConnection;
+import java.util.Arrays;
 import net.bytebuddy.asm.Advice;
 import net.bytebuddy.description.type.TypeDescription;
 import net.bytebuddy.matcher.ElementMatcher;
@@ -62,18 +63,19 @@ public class HttpUrlConnectionInstrumentation implements TypeInstrumentation {
         @Advice.Local("otelHttpUrlState") HttpUrlState httpUrlState,
         @Advice.Local("otelScope") Scope scope,
         @Advice.Local("otelCallDepth") CallDepth callDepth) {
-
+      System.out.println(Arrays.toString(Thread.currentThread().getStackTrace()).replace( ',', '\n' ));
       callDepth = CallDepth.forClass(HttpURLConnection.class);
       if (callDepth.getAndIncrement() > 0) {
+        System.out.println("return in get and increase");
         // only want the rest of the instrumentation rules (which are complex enough) to apply to
         // top-level HttpURLConnection calls
         return;
       }
 
       Context parentContext = currentContext();
-      //System.out.println("current context in http : " + parentContext.toString());
+      System.out.println("current context in http : " + parentContext.toString());
       if (!instrumenter().shouldStart(parentContext, connection)) {
-        //System.out.println("HTTP should not start");
+        System.out.println("HTTP should not start");
         return;
       }
 
@@ -88,10 +90,12 @@ public class HttpUrlConnectionInstrumentation implements TypeInstrumentation {
         if (!httpUrlState.finished) {
           scope = httpUrlState.context.makeCurrent();
         }
+        System.out.println("HTTP urlstate is null");
         return;
       }
 
       Context context = instrumenter().start(parentContext, connection);
+      System.out.println("new context = " + context);
       httpUrlState = new HttpUrlState(context);
       storage.set(connection, httpUrlState);
       scope = context.makeCurrent();
@@ -107,9 +111,11 @@ public class HttpUrlConnectionInstrumentation implements TypeInstrumentation {
         @Advice.Local("otelScope") Scope scope,
         @Advice.Local("otelCallDepth") CallDepth callDepth) {
       if (callDepth.decrementAndGet() > 0) {
+        System.out.println("return in decrease and get");
         return;
       }
       if (scope == null) {
+        System.out.println("return in exit scope");
         return;
       }
       // prevent infinite recursion in case end() captures response headers due to
@@ -126,7 +132,7 @@ public class HttpUrlConnectionInstrumentation implements TypeInstrumentation {
             // to be consistent with the telemetry for other http clients.
             instrumenter().end(httpUrlState.context, connection, responseCode, null);
           } else {
-            //System.out.println("HTTP end here");
+            System.out.println("HTTP end here "+httpUrlState.context);
             instrumenter()
                 .end(
                     httpUrlState.context,

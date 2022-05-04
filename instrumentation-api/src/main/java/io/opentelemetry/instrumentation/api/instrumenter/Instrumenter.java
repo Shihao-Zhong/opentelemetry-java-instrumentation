@@ -133,8 +133,8 @@ public class Instrumenter<REQUEST, RESPONSE> {
     this.disabled = builder.disabled;
     this.spanSuppressionStrategy = builder.getSpanSuppressionStrategy();
     if (!Instrumenter.VAIF_CONFIG_PATH.equals("")) {
-      System.out.println("start vaif sampling service-name = " + Instrumenter.SERVICE_NAME);
-      System.out.println("start vaif sampling path = " + Instrumenter.VAIF_CONFIG_PATH);
+      //System.out.println("start vaif sampling service-name = " + Instrumenter.SERVICE_NAME);
+      //System.out.println("start vaif sampling path = " + Instrumenter.VAIF_CONFIG_PATH);
       this.vaif = getVAIFConfigWatch(Instrumenter.SERVICE_NAME, Instrumenter.VAIF_CONFIG_PATH, Instrumenter.VAIF_CP_CONFIG_PATH);
       this.vaif.startWatch();
     } else {
