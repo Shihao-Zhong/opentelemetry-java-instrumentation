@@ -62,6 +62,10 @@ public class VAIFConfigWatch {
   }
 
   public boolean isEnable(String spanName) {
+    if (this.config.containsKey("*")) {
+      return 1 == (long) this.config.get("*");
+    }
+
     try {
       //this.printConfig();
       boolean result = 1 == (long) this.config.get(spanName);
