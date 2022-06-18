@@ -121,6 +121,8 @@ public class Instrumenter<REQUEST, RESPONSE> {
     this.instrumentationName = builder.instrumentationName;
     this.tracer =
         builder.openTelemetry.getTracer(instrumentationName, builder.instrumentationVersion);
+    System.out.println("\n\n\n\n\nimportant: \n\n");
+    System.out.println(builder.openTelemetry.getTracerProvider().toString());
     this.spanNameExtractor = builder.spanNameExtractor;
     this.spanKindExtractor = builder.spanKindExtractor;
     this.spanStatusExtractor = builder.spanStatusExtractor;
@@ -202,7 +204,9 @@ public class Instrumenter<REQUEST, RESPONSE> {
 
   private Context buildSpanContext(Context parentContext, REQUEST request, String spanName, boolean addAttributes) {
     SpanKind spanKind = spanKindExtractor.extract(request);
+    System.out.println(tracer.toString());
     SpanBuilder spanBuilder =
+
         tracer
             .spanBuilder(spanName)
             .setSpanKind(spanKind)
