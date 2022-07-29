@@ -13,7 +13,8 @@ group = "io.opentelemetry.instrumentation"
 
 dependencies {
   api("io.opentelemetry:opentelemetry-api")
-
+  // https://mvnrepository.com/artifact/com.googlecode.json-simple/json-simple
+  implementation("com.googlecode.json-simple:json-simple:1.1.1")
   compileOnly("com.google.auto.value:auto-value-annotations")
   annotationProcessor("com.google.auto.value:auto-value")
 

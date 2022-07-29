@@ -33,7 +33,10 @@ public class TomcatHelper<REQUEST, RESPONSE> {
 
   public Context start(Context parentContext, Request request) {
     Context context = instrumenter.start(parentContext, request);
-    request.setAttribute(ServletHelper.CONTEXT_ATTRIBUTE, context);
+    if (!context.equals(parentContext)) {
+      System.out.println("Tom cat also disabled.");
+      request.setAttribute(ServletHelper.CONTEXT_ATTRIBUTE, context);
+    }
     return context;
   }
 

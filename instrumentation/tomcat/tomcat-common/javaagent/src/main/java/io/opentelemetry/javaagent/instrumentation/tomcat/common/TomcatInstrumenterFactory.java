@@ -32,7 +32,7 @@ public final class TomcatInstrumenterFactory {
     TomcatNetAttributesGetter netAttributesGetter = new TomcatNetAttributesGetter();
     AttributesExtractor<Request, Response> additionalAttributeExtractor =
         new TomcatAdditionalAttributesExtractor<>(accessor, servletEntityProvider);
-
+    System.out.println("create tomcat instrumenter");
     return Instrumenter.<Request, Response>builder(
             GlobalOpenTelemetry.get(),
             instrumentationName,

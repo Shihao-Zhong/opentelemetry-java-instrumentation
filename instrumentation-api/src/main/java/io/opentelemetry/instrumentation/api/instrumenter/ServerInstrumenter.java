@@ -25,7 +25,7 @@ final class ServerInstrumenter<REQUEST, RESPONSE> extends Instrumenter<REQUEST, 
   @Override
   public Context start(Context parentContext, REQUEST request) {
     ContextPropagationDebug.debugContextLeakIfEnabled();
-
+    System.out.println("start context getter with context " + parentContext.toString());
     Context extracted = propagators.getTextMapPropagator().extract(parentContext, request, getter);
     return super.start(extracted, request);
   }
